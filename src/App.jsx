@@ -1,11 +1,11 @@
 import { useState, useCallback } from 'react'
 import BillPage from './pages/BillPage'
-import VendorsPage from './pages/VendorsPage'
 import HistoryPage from './pages/HistoryPage'
+import ItemsPage from './pages/ItemsPage'
 
 const TABS = [
   { id: 'bill', label: '🧾 New Bill', icon: '🧾' },
-  { id: 'vendors', label: '🏪 Vendors', icon: '🏪' },
+  { id: 'items', label: '🧊 Items', icon: '🧊' },
   { id: 'history', label: '📋 History', icon: '📋' },
 ]
 
@@ -33,7 +33,7 @@ export default function App() {
       {/* Content */}
       <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-5">
         {tab === 'bill' && <BillPage onSaved={onBillSaved} />}
-        {tab === 'vendors' && <VendorsPage />}
+        {tab === 'items' && <ItemsPage />}
         {tab === 'history' && <HistoryPage key={historyKey} />}
       </main>
 

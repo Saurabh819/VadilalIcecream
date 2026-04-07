@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getVendors, saveVendors } from '../utils/storage'
 
-const emptyVendor = { name: '', mobile: '' }
+const emptyVendor = { name: '', mobile: '', city: '' }
 
 export default function VendorsPage() {
     const [vendors, setVendors] = useState([])
@@ -18,7 +18,7 @@ export default function VendorsPage() {
 
     function handleSubmit(e) {
         e.preventDefault()
-        if (!form.name.trim()) return
+        if (!form.name.trim() || !form.city.trim()) return
 
         if (editId) {
             persist(vendors.map(v => (v.id === editId ? { ...v, ...form } : v)))
@@ -30,7 +30,7 @@ export default function VendorsPage() {
     }
 
     function startEdit(v) {
-        setForm({ name: v.name, mobile: v.mobile })
+        setForm({ name: v.name, mobile: v.mobile, city: v.city || '' })
         setEditId(v.id)
     }
 
@@ -38,9 +38,10 @@ export default function VendorsPage() {
         if (confirm('Delete this vendor?')) persist(vendors.filter(v => v.id !== id))
     }
 
-    const filtered = vendors.filter(v =>
-        v.name.toLowerCase().includes(search.toLowerCase())
-    )
+    const filtered = vendors.filter(v => {
+        const q = search.toLowerCase()
+        return v.name.toLowerCase().includes(q) || (v.city || '').toLowerCase().includes(q)
+    })
 
     return (
         <div className="space-y-6 animate-fadeIn">
@@ -53,7 +54,7 @@ export default function VendorsPage() {
                     <span className="text-2xl">🏪</span>
                     {editId ? 'Edit Vendor' : 'Add Vendor'}
                 </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <input
                         className="w-full rounded-lg bg-surface-dark border border-white/10 px-4 py-2.5 text-sm placeholder-gray-500 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition"
                         placeholder="Vendor Name *"
@@ -66,6 +67,13 @@ export default function VendorsPage() {
                         placeholder="Mobile Number"
                         value={form.mobile}
                         onChange={e => setForm({ ...form, mobile: e.target.value })}
+                    />
+                    <input
+                        className="w-full rounded-lg bg-surface-dark border border-white/10 px-4 py-2.5 text-sm placeholder-gray-500 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition"
+                        placeholder="City *"
+                        value={form.city}
+                        onChange={e => setForm({ ...form, city: e.target.value })}
+                        required
                     />
                 </div>
                 <div className="flex gap-2">
@@ -106,6 +114,7 @@ export default function VendorsPage() {
                     >
                         <div>
                             <p className="font-medium">{v.name}</p>
+                            <p className="text-xs text-gray-400">{v.city || 'No City'}</p>
                             {v.mobile && <p className="text-xs text-gray-400">{v.mobile}</p>}
                         </div>
                         <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">

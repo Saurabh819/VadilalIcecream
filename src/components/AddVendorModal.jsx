@@ -1,17 +1,21 @@
 import { useState, useEffect, useRef } from 'react'
 
-export default function AddVendorModal({ open, onClose, onSaved }) {
+const DEFAULT_CITIES = ['Fatehabad', 'Pinahat', 'Bah', 'Bhadrauli', 'Syahipura']
+
+export default function AddVendorModal({ open, onClose, onSaved, defaultCity = '' }) {
     const [name, setName] = useState('')
     const [mobile, setMobile] = useState('')
+    const [city, setCity] = useState('')
     const inputRef = useRef(null)
 
     useEffect(() => {
         if (open) {
             setName('')
             setMobile('')
+            setCity(defaultCity)
             setTimeout(() => inputRef.current?.focus(), 100)
         }
-    }, [open])
+    }, [open, defaultCity])
 
     // Close on Escape
     useEffect(() => {
@@ -23,8 +27,8 @@ export default function AddVendorModal({ open, onClose, onSaved }) {
 
     function handleSubmit(e) {
         e.preventDefault()
-        if (!name.trim()) return
-        onSaved({ name: name.trim(), mobile: mobile.trim() })
+        if (!name.trim() || !city.trim()) return
+        onSaved({ name: name.trim(), mobile: mobile.trim(), city: city.trim() })
     }
 
     if (!open) return null
@@ -75,6 +79,22 @@ export default function AddVendorModal({ open, onClose, onSaved }) {
                             placeholder="Optional"
                             className="w-full rounded-lg bg-surface-dark border border-white/10 px-4 py-2.5 text-sm placeholder-gray-500 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition"
                         />
+                    </div>
+                    <div>
+                        <label className="text-xs text-gray-400 mb-1 block">City *</label>
+                        <input
+                            value={city}
+                            onChange={e => setCity(e.target.value)}
+                            list="default-city-options"
+                            placeholder="Enter city"
+                            required
+                            className="w-full rounded-lg bg-surface-dark border border-white/10 px-4 py-2.5 text-sm placeholder-gray-500 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition"
+                        />
+                        <datalist id="default-city-options">
+                            {DEFAULT_CITIES.map(c => (
+                                <option key={c} value={c} />
+                            ))}
+                        </datalist>
                     </div>
 
                     <div className="flex gap-2 pt-2">

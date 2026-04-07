@@ -1,7 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import products from '../data/products'
 import { getVendors, saveVendors, addBill, getNextBillNumber, getDueForVendor } from '../utils/storage'
 import AddVendorModal from '../components/AddVendorModal'
+
+const DEFAULT_CITIES = ['Fatehabad', 'Pinahat', 'Bah', 'Bhadrauli', 'Syahipura']
 
 function emptyRow() {
     return { id: Date.now(), quantity: 1, productCode: '', description: '', rate: 0, amount: 0 }
@@ -12,8 +14,17 @@ function todayStr() {
     return d.toISOString().slice(0, 10)
 }
 
+function round2(value) {
+    return Math.round((Number(value) || 0) * 100) / 100
+}
+
+function formatMoney(value) {
+    return round2(value).toFixed(2)
+}
+
 export default function BillPage({ onSaved }) {
     const [vendors, setVendors] = useState([])
+    const [city, setCity] = useState('')
     const [vendorId, setVendorId] = useState('')
     const [date, setDate] = useState(todayStr())
     const [rows, setRows] = useState([emptyRow()])
@@ -22,12 +33,14 @@ export default function BillPage({ onSaved }) {
     const [saved, setSaved] = useState(false)
     const [savedBill, setSavedBill] = useState(null)
     const [showVendorModal, setShowVendorModal] = useState(false)
+    const dateInputRef = useRef(null)
 
-    function handleVendorAdded({ name, mobile }) {
-        const newVendor = { id: Date.now().toString(), name, mobile }
+    function handleVendorAdded({ name, mobile, city: vendorCity }) {
+        const newVendor = { id: Date.now().toString(), name, mobile, city: vendorCity }
         const updated = [...vendors, newVendor]
         saveVendors(updated)
         setVendors(updated)
+        setCity(vendorCity)
         setVendorId(newVendor.id)
         setShowVendorModal(false)
     }
@@ -42,10 +55,26 @@ export default function BillPage({ onSaved }) {
         }
     }, [vendorId])
 
-    const total = useMemo(() => rows.reduce((s, r) => s + r.amount, 0), [rows])
-    const grandTotal = total + previousDue
-    const paid = parseFloat(paidAmount) || 0
-    const due = Math.max(0, grandTotal - paid)
+    const cityOptions = useMemo(() => {
+        const unique = new Set([
+            ...DEFAULT_CITIES,
+            ...vendors
+                .map(v => (v.city || '').trim())
+                .filter(Boolean),
+        ])
+        return Array.from(unique).sort((a, b) => a.localeCompare(b))
+    }, [vendors])
+
+    const cityVendors = useMemo(
+        () => vendors.filter(v => (v.city || '').trim().toLowerCase() === city.toLowerCase()),
+        [vendors, city]
+    )
+
+    const total = useMemo(() => round2(rows.reduce((s, r) => s + r.amount, 0)), [rows])
+    const totalQty = useMemo(() => rows.reduce((s, r) => s + (parseFloat(r.quantity) || 0), 0), [rows])
+    const grandTotal = round2(total + previousDue)
+    const paid = round2(parseFloat(paidAmount) || 0)
+    const due = round2(Math.max(0, grandTotal - paid))
 
     function updateRow(idx, patch) {
         setRows(prev => {
@@ -61,7 +90,7 @@ export default function BillPage({ onSaved }) {
                 }
             }
 
-            row.amount = (parseFloat(row.quantity) || 0) * (parseFloat(row.rate) || 0)
+            row.amount = round2((parseFloat(row.quantity) || 0) * (parseFloat(row.rate) || 0))
             next[idx] = row
             return next
         })
@@ -77,6 +106,7 @@ export default function BillPage({ onSaved }) {
     }
 
     function handleSave() {
+        if (!city) return alert('Please select a city')
         if (!vendorId) return alert('Please select a vendor')
         if (rows.every(r => !r.productCode)) return alert('Please add at least one item')
 
@@ -90,6 +120,7 @@ export default function BillPage({ onSaved }) {
             vendorId,
             vendorName: vendor?.name || '',
             vendorMobile: vendor?.mobile || '',
+            vendorCity: vendor?.city || city,
             items: rows.filter(r => r.productCode),
             subtotal: total,
             previousDue,
@@ -107,6 +138,7 @@ export default function BillPage({ onSaved }) {
     function handleNew() {
         setSaved(false)
         setSavedBill(null)
+        setCity('')
         setVendorId('')
         setDate(todayStr())
         setRows([emptyRow()])
@@ -121,14 +153,14 @@ export default function BillPage({ onSaved }) {
         text += `👤 Vendor: ${bill.vendorName}\n`
         text += `─────────────\n`
         bill.items.forEach((item, i) => {
-            text += `${i + 1}. ${item.description}  ×${item.quantity}  @₹${item.rate}  = ₹${item.amount}\n`
+            text += `${i + 1}. ${item.description}  ×${item.quantity}  @₹${formatMoney(item.rate)}  = ₹${formatMoney(item.amount)}\n`
         })
         text += `─────────────\n`
-        text += `💰 Subtotal: ₹${bill.subtotal}\n`
-        if (bill.previousDue > 0) text += `📌 Previous Due: ₹${bill.previousDue}\n`
-        text += `🏷️ Grand Total: ₹${bill.grandTotal}\n`
-        text += `✅ Paid: ₹${bill.paid}\n`
-        if (bill.due > 0) text += `⚠️ Due: ₹${bill.due}\n`
+        text += `💰 Subtotal: ₹${formatMoney(bill.subtotal)}\n`
+        if (bill.previousDue > 0) text += `📌 Previous Due: ₹${formatMoney(bill.previousDue)}\n`
+        text += `🏷️ Grand Total: ₹${formatMoney(bill.grandTotal)}\n`
+        text += `✅ Paid: ₹${formatMoney(bill.paid)}\n`
+        if (bill.due > 0) text += `⚠️ Due: ₹${formatMoney(bill.due)}\n`
         return text
     }
 
@@ -145,6 +177,12 @@ export default function BillPage({ onSaved }) {
 
     function handlePrint() {
         window.print()
+    }
+
+    function openDatePicker() {
+        if (dateInputRef.current && typeof dateInputRef.current.showPicker === 'function') {
+            dateInputRef.current.showPicker()
+        }
     }
 
     const vendor = vendors.find(v => v.id === vendorId)
@@ -192,8 +230,8 @@ export default function BillPage({ onSaved }) {
                                         <td className="py-2 text-gray-500">{i + 1}</td>
                                         <td className="py-2">{item.description}</td>
                                         <td className="py-2 text-center">{item.quantity}</td>
-                                        <td className="py-2 text-right">₹{item.rate}</td>
-                                        <td className="py-2 text-right font-medium">₹{item.amount}</td>
+                                        <td className="py-2 text-right">₹{formatMoney(item.rate)}</td>
+                                        <td className="py-2 text-right font-medium">₹{formatMoney(item.amount)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -203,26 +241,26 @@ export default function BillPage({ onSaved }) {
                     <div className="border-t border-white/10 pt-3 text-sm space-y-1">
                         <div className="flex justify-between">
                             <span className="text-gray-400">Subtotal</span>
-                            <span>₹{savedBill.subtotal}</span>
+                            <span>₹{formatMoney(savedBill.subtotal)}</span>
                         </div>
                         {savedBill.previousDue > 0 && (
                             <div className="flex justify-between text-warning">
                                 <span>Previous Due</span>
-                                <span>₹{savedBill.previousDue}</span>
+                                <span>₹{formatMoney(savedBill.previousDue)}</span>
                             </div>
                         )}
                         <div className="flex justify-between font-bold text-base border-t border-white/10 pt-2 mt-2">
                             <span>Grand Total</span>
-                            <span className="text-primary-light">₹{savedBill.grandTotal}</span>
+                            <span className="text-primary-light">₹{formatMoney(savedBill.grandTotal)}</span>
                         </div>
                         <div className="flex justify-between text-success">
                             <span>Paid</span>
-                            <span>₹{savedBill.paid}</span>
+                            <span>₹{formatMoney(savedBill.paid)}</span>
                         </div>
                         {savedBill.due > 0 && (
                             <div className="flex justify-between text-danger font-semibold">
                                 <span>Due</span>
-                                <span>₹{savedBill.due}</span>
+                                <span>₹{formatMoney(savedBill.due)}</span>
                             </div>
                         )}
                     </div>
@@ -261,18 +299,35 @@ export default function BillPage({ onSaved }) {
                     <span className="text-2xl">🧾</span> New Bill
                 </h2>
 
-                {/* Vendor + Date */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* City + Vendor + Date */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label className="text-xs text-gray-400 mb-1 block">City *</label>
+                        <select
+                            value={city}
+                            onChange={e => {
+                                setCity(e.target.value)
+                                setVendorId('')
+                            }}
+                            className="w-full rounded-lg bg-surface-dark border border-white/10 px-4 py-2.5 text-sm focus:border-primary outline-none transition"
+                        >
+                            <option value="">Select City</option>
+                            {cityOptions.map(c => (
+                                <option key={c} value={c}>{c}</option>
+                            ))}
+                        </select>
+                    </div>
                     <div>
                         <label className="text-xs text-gray-400 mb-1 block">Vendor *</label>
                         <div className="flex gap-2">
                             <select
                                 value={vendorId}
                                 onChange={e => setVendorId(e.target.value)}
+                                disabled={!city}
                                 className="flex-1 rounded-lg bg-surface-dark border border-white/10 px-4 py-2.5 text-sm focus:border-primary outline-none transition"
                             >
-                                <option value="">Select Vendor</option>
-                                {vendors.map(v => (
+                                <option value="">{city ? 'Select Vendor' : 'Select City First'}</option>
+                                {cityVendors.map(v => (
                                     <option key={v.id} value={v.id}>{v.name}</option>
                                 ))}
                             </select>
@@ -292,6 +347,9 @@ export default function BillPage({ onSaved }) {
                             type="date"
                             value={date}
                             onChange={e => setDate(e.target.value)}
+                            onClick={openDatePicker}
+                            onFocus={openDatePicker}
+                            ref={dateInputRef}
                             className="w-full rounded-lg bg-surface-dark border border-white/10 px-4 py-2.5 text-sm focus:border-primary outline-none transition"
                         />
                     </div>
@@ -299,14 +357,82 @@ export default function BillPage({ onSaved }) {
 
                 {previousDue > 0 && (
                     <div className="bg-warning/10 border border-warning/30 rounded-lg px-4 py-2 text-sm text-warning">
-                        ⚠️ Previous due for <strong>{vendor?.name}</strong>: <strong>₹{previousDue}</strong>
+                        ⚠️ Previous due for <strong>{vendor?.name}</strong>: <strong>₹{formatMoney(previousDue)}</strong>
                     </div>
                 )}
             </div>
 
-            {/* Invoice Table */}
-            <div className="bg-surface rounded-2xl p-5 shadow-lg shadow-black/20 border border-white/5 overflow-x-auto">
-                <table className="w-full text-sm min-w-[600px]">
+            {/* Invoice Items */}
+            <div className="bg-surface rounded-2xl p-4 sm:p-5 shadow-lg shadow-black/20 border border-white/5">
+                <div className="md:hidden space-y-3">
+                    {rows.map((row, idx) => (
+                        <div key={row.id} className="rounded-xl border border-white/10 bg-surface-dark/50 p-3 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <p className="text-xs text-gray-400">Item {idx + 1}</p>
+                                {rows.length > 1 && (
+                                    <button
+                                        onClick={() => removeRow(idx)}
+                                        className="text-danger/70 hover:text-danger text-sm transition"
+                                    >
+                                        Remove
+                                    </button>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="text-[11px] text-gray-400 mb-1 block">Product</label>
+                                <select
+                                    value={row.productCode}
+                                    onChange={e => updateRow(idx, { productCode: e.target.value })}
+                                    className="w-full rounded-md bg-surface-dark border border-white/10 px-3 py-2 text-sm focus:border-primary outline-none transition"
+                                >
+                                    <option value="">Select Product</option>
+                                    {products.map(p => (
+                                        <option key={p.productCode} value={p.productCode}>
+                                            {p.productCode} - {p.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="text-xs text-gray-300 min-h-4">
+                                {row.description || 'Description will appear here'}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="text-[11px] text-gray-400 mb-1 block">Qty</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={row.quantity}
+                                        onChange={e => updateRow(idx, { quantity: parseInt(e.target.value) || 0 })}
+                                        className="w-full rounded-md bg-surface-dark border border-white/10 px-3 py-2 text-sm text-center focus:border-primary outline-none transition"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[11px] text-gray-400 mb-1 block">Rate (Rs)</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={row.rate}
+                                        onChange={e => updateRow(idx, { rate: parseFloat(e.target.value) || 0 })}
+                                        className="w-full rounded-md bg-surface-dark border border-white/10 px-3 py-2 text-sm text-right focus:border-primary outline-none transition"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex justify-between text-sm border-t border-white/10 pt-2">
+                                <span className="text-gray-400">Amount</span>
+                                <span className="font-semibold text-primary-light">Rs {formatMoney(row.amount)}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-sm min-w-[600px]">
                     <thead>
                         <tr className="border-b border-white/10 text-gray-400 text-xs uppercase tracking-wider">
                             <th className="py-2 text-left w-16">Qty</th>
@@ -337,7 +463,9 @@ export default function BillPage({ onSaved }) {
                                     >
                                         <option value="">Select</option>
                                         {products.map(p => (
-                                            <option key={p.productCode} value={p.productCode}>{p.productCode}</option>
+                                            <option key={p.productCode} value={p.productCode}>
+                                                {p.productCode} - {p.name}
+                                            </option>
                                         ))}
                                     </select>
                                 </td>
@@ -346,13 +474,14 @@ export default function BillPage({ onSaved }) {
                                     <input
                                         type="number"
                                         min="0"
+                                        step="0.01"
                                         value={row.rate}
                                         onChange={e => updateRow(idx, { rate: parseFloat(e.target.value) || 0 })}
                                         className="w-full rounded-md bg-surface-dark border border-white/10 px-2 py-1.5 text-sm text-right focus:border-primary outline-none transition"
                                     />
                                 </td>
                                 <td className="py-2 text-right font-medium text-primary-light">
-                                    ₹{row.amount}
+                                    ₹{formatMoney(row.amount)}
                                 </td>
                                 <td className="py-2 text-center">
                                     {rows.length > 1 && (
@@ -365,11 +494,12 @@ export default function BillPage({ onSaved }) {
                             </tr>
                         ))}
                     </tbody>
-                </table>
+                    </table>
+                </div>
 
                 <button
                     onClick={addRow}
-                    className="mt-3 text-xs px-4 py-1.5 rounded-lg bg-primary/10 text-primary-light hover:bg-primary/20 transition"
+                    className="mt-3 text-xs sm:text-sm px-4 py-2 rounded-lg bg-primary/10 text-primary-light hover:bg-primary/20 transition"
                 >
                     + Add Row
                 </button>
@@ -378,18 +508,22 @@ export default function BillPage({ onSaved }) {
             {/* Totals & Payment */}
             <div className="bg-surface rounded-2xl p-5 shadow-lg shadow-black/20 border border-white/5 space-y-3">
                 <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Total Quantity</span>
+                    <span className="font-medium">{totalQty}</span>
+                </div>
+                <div className="flex justify-between text-sm">
                     <span className="text-gray-400">Subtotal</span>
-                    <span className="font-medium">₹{total}</span>
+                    <span className="font-medium">₹{formatMoney(total)}</span>
                 </div>
                 {previousDue > 0 && (
                     <div className="flex justify-between text-sm text-warning">
                         <span>Previous Due</span>
-                        <span>₹{previousDue}</span>
+                        <span>₹{formatMoney(previousDue)}</span>
                     </div>
                 )}
-                <div className="flex justify-between text-lg font-bold border-t border-white/10 pt-3">
+                <div className="flex justify-between text-2xl font-bold border-t border-white/10 pt-3">
                     <span>Grand Total</span>
-                    <span className="text-primary-light">₹{grandTotal}</span>
+                    <span className="text-primary-light">₹{formatMoney(grandTotal)}</span>
                 </div>
 
                 <div>
@@ -407,7 +541,7 @@ export default function BillPage({ onSaved }) {
                 {paid > 0 && due > 0 && (
                     <div className="flex justify-between text-sm text-danger font-semibold">
                         <span>Remaining Due</span>
-                        <span>₹{due}</span>
+                        <span>₹{formatMoney(due)}</span>
                     </div>
                 )}
 
@@ -424,6 +558,7 @@ export default function BillPage({ onSaved }) {
                 open={showVendorModal}
                 onClose={() => setShowVendorModal(false)}
                 onSaved={handleVendorAdded}
+                defaultCity={city}
             />
         </div>
     )
