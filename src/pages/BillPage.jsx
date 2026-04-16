@@ -75,13 +75,16 @@ function ProductSelect({ value, onChange, placeholder = 'Search code or name…'
                 className="w-full rounded-md bg-surface-dark border border-white/10 px-3 py-2 text-sm focus:border-primary outline-none transition placeholder-gray-500"
             />
             {open && (
-                <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-56 overflow-y-auto rounded-md bg-[#1e2235] border border-white/10 shadow-2xl">
+                <div
+                    className="absolute z-50 top-full left-0 right-0 mt-1 max-h-56 overflow-y-auto rounded-md bg-[#1e2235] border border-white/10 shadow-2xl"
+                    onMouseDown={e => e.preventDefault()}
+                >
                     {filtered.length === 0 ? (
                         <p className="px-3 py-2 text-xs text-gray-500">No products found</p>
                     ) : filtered.map((p, i) => (
                         <div
                             key={p.productCode || p.name + i}
-                            onPointerDown={e => { e.preventDefault(); handleSelect(p.productCode) }}
+                            onClick={() => handleSelect(p.productCode)}
                             className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
                                 p.productCode === value
                                     ? 'bg-primary/30 text-white'
