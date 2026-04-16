@@ -402,13 +402,25 @@ export default function BillPage({ onSaved }) {
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
                                     <label className="text-[11px] text-gray-400 mb-1 block">Qty</label>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        value={row.quantity}
-                                        onChange={e => updateRow(idx, { quantity: parseInt(e.target.value) || 0 })}
-                                        className="w-full rounded-md bg-surface-dark border border-white/10 px-3 py-2 text-sm text-center focus:border-primary outline-none transition"
-                                    />
+                                    <div className="flex items-center rounded-md overflow-hidden border border-white/10 bg-surface-dark">
+                                        <button
+                                            type="button"
+                                            onClick={() => updateRow(idx, { quantity: Math.max(1, (parseInt(row.quantity) || 1) - 1) })}
+                                            className="w-10 h-10 flex items-center justify-center text-xl font-bold text-primary-light bg-white/5 hover:bg-primary/20 active:bg-primary/40 transition-colors select-none"
+                                        >−</button>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={row.quantity}
+                                            onChange={e => updateRow(idx, { quantity: parseInt(e.target.value) || 1 })}
+                                            className="flex-1 min-w-0 bg-transparent py-2 text-sm text-center outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => updateRow(idx, { quantity: (parseInt(row.quantity) || 0) + 1 })}
+                                            className="w-10 h-10 flex items-center justify-center text-xl font-bold text-primary-light bg-white/5 hover:bg-primary/20 active:bg-primary/40 transition-colors select-none"
+                                        >+</button>
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="text-[11px] text-gray-400 mb-1 block">Rate (Rs)</label>
