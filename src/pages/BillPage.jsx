@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import products from '../data/products'
 import { getVendors, saveVendors, addBill, getNextBillNumber, getDueForVendor } from '../utils/storage'
 import AddVendorModal from '../components/AddVendorModal'
@@ -21,6 +21,85 @@ function round2(value) {
 function formatMoney(value) {
     return round2(value).toFixed(2)
 }
+
+// ── Searchable product combo-box ─────────────────────────────────────────────
+function ProductSelect({ value, onChange, placeholder = 'Search code or name…', className = '' }) {
+    const [query, setQuery] = useState('')
+    const [open, setOpen] = useState(false)
+    const wrapRef = useRef(null)
+    const inputRef = useRef(null)
+
+    const selected = products.find(p => p.productCode === value && p.productCode !== '')
+    const displayText = selected ? `${selected.productCode} - ${selected.name}` : ''
+
+    const filtered = useMemo(() => {
+        const q = query.trim().toLowerCase()
+        if (!q) return products
+        const isNumeric = /^\d+$/.test(q)
+        return products.filter(p =>
+            p.productCode.toLowerCase().startsWith(q) ||
+            (!isNumeric && p.name.toLowerCase().includes(q))
+        )
+    }, [query])
+
+    // Close on outside click
+    useEffect(() => {
+        function onPointerDown(e) {
+            if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false)
+        }
+        document.addEventListener('pointerdown', onPointerDown)
+        return () => document.removeEventListener('pointerdown', onPointerDown)
+    }, [])
+
+    function handleFocus() {
+        setQuery('')
+        setOpen(true)
+    }
+
+    function handleSelect(code) {
+        onChange(code)
+        setQuery('')
+        setOpen(false)
+    }
+
+    return (
+        <div ref={wrapRef} className={`relative ${className}`}>
+            <input
+                ref={inputRef}
+                type="text"
+                value={open ? query : displayText}
+                onChange={e => { setQuery(e.target.value); setOpen(true) }}
+                onFocus={handleFocus}
+                placeholder={placeholder}
+                autoComplete="off"
+                className="w-full rounded-md bg-surface-dark border border-white/10 px-3 py-2 text-sm focus:border-primary outline-none transition placeholder-gray-500"
+            />
+            {open && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-56 overflow-y-auto rounded-md bg-[#1e2235] border border-white/10 shadow-2xl">
+                    {filtered.length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-gray-500">No products found</p>
+                    ) : filtered.map((p, i) => (
+                        <div
+                            key={p.productCode || p.name + i}
+                            onPointerDown={e => { e.preventDefault(); handleSelect(p.productCode) }}
+                            className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
+                                p.productCode === value
+                                    ? 'bg-primary/30 text-white'
+                                    : 'hover:bg-primary/15 text-gray-200'
+                            }`}
+                        >
+                            {p.productCode
+                                ? <><span className="text-primary-light font-mono mr-2">{p.productCode}</span>{p.name}</>
+                                : <span className="text-gray-400">{p.name}</span>
+                            }
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function BillPage({ onSaved }) {
     const [vendors, setVendors] = useState([])
@@ -381,18 +460,10 @@ export default function BillPage({ onSaved }) {
 
                             <div>
                                 <label className="text-[11px] text-gray-400 mb-1 block">Product</label>
-                                <select
+                                <ProductSelect
                                     value={row.productCode}
-                                    onChange={e => updateRow(idx, { productCode: e.target.value })}
-                                    className="w-full rounded-md bg-surface-dark border border-white/10 px-3 py-2 text-sm focus:border-primary outline-none transition"
-                                >
-                                    <option value="">Select Product</option>
-                                    {products.map(p => (
-                                        <option key={p.productCode} value={p.productCode}>
-                                            {p.productCode} - {p.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    onChange={code => updateRow(idx, { productCode: code })}
+                                />
                             </div>
 
                             <div className="text-xs text-gray-300 min-h-4">
@@ -468,18 +539,11 @@ export default function BillPage({ onSaved }) {
                                     />
                                 </td>
                                 <td className="py-2 pr-2">
-                                    <select
+                                    <ProductSelect
                                         value={row.productCode}
-                                        onChange={e => updateRow(idx, { productCode: e.target.value })}
-                                        className="w-full rounded-md bg-surface-dark border border-white/10 px-2 py-1.5 text-sm focus:border-primary outline-none transition"
-                                    >
-                                        <option value="">Select</option>
-                                        {products.map(p => (
-                                            <option key={p.productCode} value={p.productCode}>
-                                                {p.productCode} - {p.name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        onChange={code => updateRow(idx, { productCode: code })}
+                                        placeholder="Search…"
+                                    />
                                 </td>
                                 <td className="py-2 pr-2 text-gray-300">{row.description || '—'}</td>
                                 <td className="py-2 pr-2">
